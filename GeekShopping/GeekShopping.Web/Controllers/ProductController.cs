@@ -1,6 +1,9 @@
 ﻿using GeekShopping.Web.Models;
 using GeekShopping.Web.Services;
 using GeekShopping.Web.Services.IServices;
+using GeekShopping.Web.Utils;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GeekShopping.Web.Controllers
@@ -14,70 +17,80 @@ namespace GeekShopping.Web.Controllers
             _productService = productService ?? throw new ArgumentNullException(nameof(productService));
         }
 
-        public async Task<IActionResult> ProductIndex()
-        {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
-            var products = await _productService.FindAllProducts();
-
-            return View(products);
-        }
-
         public IActionResult ProductCreate()
         {
             return View();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> ProductCreate(ProductModel productModel)
-        {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
-            if (ModelState.IsValid)
-            {
-                var response = await _productService.CreateProduct(productModel);
-                if (response != null) return RedirectToAction(nameof(ProductIndex));
-            }
-
-            return View(productModel);
-        }
-
         public async Task<IActionResult> ProductUpdate(int id)
         {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
-            
-            var model = await _productService.FindProductById(id);
+            var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+            var model = await _productService.FindProductById(id, accessToken);
             if (model != null) return View(model);
 
             return NotFound();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> ProductUpdate(ProductModel productModel)
+        [Authorize]
+        public async Task<IActionResult> ProductDelete(int id)
         {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
+            var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+            var model = await _productService.FindProductById(id, accessToken);
+            if (model != null) return View(model);
+
+            return NotFound();
+        }
+
+
+        [Authorize]
+        public async Task<IActionResult> ProductIndex()
+        {
+            var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+            var products = await _productService.FindAllProducts(accessToken);
+
+            return View(products);
+        }
+
+        [HttpPost]
+        [Authorize]
+        public async Task<IActionResult> ProductCreate(ProductModel productModel)
+        {
             if (ModelState.IsValid)
             {
-                var response = await _productService.UpdateProduct(productModel);
+                var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+                var response = await _productService.CreateProduct(productModel, accessToken);
                 if (response != null) return RedirectToAction(nameof(ProductIndex));
             }
 
             return View(productModel);
         }
 
-        public async Task<IActionResult> ProductDelete(int id)
+        [HttpPost]
+        [Authorize]
+        public async Task<IActionResult> ProductUpdate(ProductModel productModel)
         {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
-            
-            var model = await _productService.FindProductById(id);
-            if (model != null) return View(model);
+            if (ModelState.IsValid)
+            {
+                var accessToken = await HttpContext.GetTokenAsync("access_token");
 
-            return NotFound();
+                var response = await _productService.UpdateProduct(productModel, accessToken);
+                if (response != null) return RedirectToAction(nameof(ProductIndex));
+            }
+
+            return View(productModel);
         }
 
         [HttpPost]
+        [Authorize(Roles = Role.Admin)]
         public async Task<IActionResult> ProductDelete(ProductModel productModel)
         {
-            if (_productService == null) throw new ArgumentNullException(nameof(_productService));
-            var response = await _productService.DeleteProductById(productModel.Id);
+            var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+            var response = await _productService.DeleteProductById(productModel.Id, accessToken);
             if (response) return RedirectToAction(nameof(ProductIndex));
 
             return View(productModel);
